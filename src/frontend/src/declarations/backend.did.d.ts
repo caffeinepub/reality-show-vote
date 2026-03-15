@@ -13,11 +13,13 @@ import type { Principal } from '@icp-sdk/core/principal';
 export interface Contestant {
   'id' : ContestantId,
   'name' : string,
-  'createdAt' : bigint,
-  'videoAssetId' : [] | [string],
+  'createdAt' : Time,
   'description' : string,
+  'videoUrl' : [] | [ExternalBlob],
 }
 export type ContestantId = bigint;
+export type ExternalBlob = Uint8Array;
+export type Time = bigint;
 export interface UserProfile { 'name' : string }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
@@ -50,9 +52,14 @@ export interface _SERVICE {
   >,
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
-  'addContestant' : ActorMethod<[string, string], ContestantId>,
+  'addContestant' : ActorMethod<
+    [string, string, [] | [ExternalBlob]],
+    ContestantId
+  >,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'claimFirstAdminRole' : ActorMethod<[], undefined>,
   'checkVote' : ActorMethod<[], [] | [ContestantId]>,
+  'getAllContestants' : ActorMethod<[], Array<Contestant>>,
   'getAllContestantsWithVotes' : ActorMethod<[], Array<[Contestant, bigint]>>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
@@ -61,7 +68,10 @@ export interface _SERVICE {
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'removeContestant' : ActorMethod<[ContestantId], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
-  'setContestantVideo' : ActorMethod<[ContestantId, string], undefined>,
+  'updateContestant' : ActorMethod<
+    [ContestantId, string, string, [] | [ExternalBlob]],
+    undefined
+  >,
   'vote' : ActorMethod<[ContestantId], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;

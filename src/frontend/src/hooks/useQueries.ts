@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { UserProfile } from "../backend";
+import { ExternalBlob } from "../backend";
 import { useActor } from "./useActor";
+import { useInternetIdentity } from "./useInternetIdentity";
 
 export function useContestants() {
   const { actor, isFetching } = useActor();
@@ -11,7 +13,7 @@ export function useContestants() {
       return actor.getAllContestantsWithVotes();
     },
     enabled: !!actor && !isFetching,
-    refetchInterval: 10000,
+    refetchInterval: 5000,
   });
 }
 
@@ -27,27 +29,42 @@ export function useCheckVote() {
   });
 }
 
-export function useIsAdmin() {
+export function useIsCallerAdmin() {
   const { actor, isFetching } = useActor();
+  const { identity } = useInternetIdentity();
   return useQuery({
-    queryKey: ["isAdmin"],
+    queryKey: ["isCallerAdmin", identity?.getPrincipal().toString()],
     queryFn: async () => {
       if (!actor) return false;
       return actor.isCallerAdmin();
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !isFetching && !!identity,
+  });
+}
+
+export function useCallerUserRole() {
+  const { actor, isFetching } = useActor();
+  const { identity } = useInternetIdentity();
+  return useQuery({
+    queryKey: ["callerUserRole", identity?.getPrincipal().toString()],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getCallerUserRole();
+    },
+    enabled: !!actor && !isFetching && !!identity,
   });
 }
 
 export function useCallerUserProfile() {
   const { actor, isFetching: actorFetching } = useActor();
+  const { identity } = useInternetIdentity();
   const query = useQuery<UserProfile | null>({
     queryKey: ["currentUserProfile"],
     queryFn: async () => {
       if (!actor) throw new Error("Actor not available");
       return actor.getCallerUserProfile();
     },
-    enabled: !!actor && !actorFetching,
+    enabled: !!actor && !actorFetching && !!identity,
     retry: false,
   });
   return {
@@ -72,50 +89,32 @@ export function useVoteMutation() {
   });
 }
 
-// Admin credentials are validated client-side
-// Default: admin / admin123
-const ADMIN_USERNAME = "admin";
-const ADMIN_PASSWORD = "admin123";
-
-export function useAdminLoginMutation() {
-  return useMutation({
-    mutationFn: async ({
-      username,
-      password,
-    }: { username: string; password: string }) => {
-      // Simulate async check
-      await new Promise((r) => setTimeout(r, 400));
-      if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-        // Return a pseudo session token
-        return { ok: `admin-session-${Date.now()}` };
-      }
-      return { err: "Invalid login ID or password." };
-    },
-  });
-}
-
-export function useAdminLogoutMutation() {
-  return useMutation({
-    mutationFn: async (_sessionId: string) => {
-      // Client-side only logout
-      await new Promise((r) => setTimeout(r, 200));
-    },
-  });
-}
-
-export function useAddContestantMutation(_sessionId: string) {
+export function useAddContestantMutation() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({
       name,
       description,
+      videoFile,
+      onProgress,
     }: {
       name: string;
       description: string;
+      videoFile: File | null;
+      onProgress?: (pct: number) => void;
     }) => {
-      if (!actor) throw new Error("Not authenticated");
-      return actor.addContestant(name, description);
+      if (!actor) throw new Error("Actor not available");
+      let externalBlob: ExternalBlob | null = null;
+      if (videoFile) {
+        const arrayBuffer = await videoFile.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        externalBlob = ExternalBlob.fromBytes(bytes);
+        if (onProgress) {
+          externalBlob = externalBlob.withUploadProgress(onProgress);
+        }
+      }
+      return actor.addContestant(name, description, externalBlob);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["contestants"] });
@@ -123,36 +122,32 @@ export function useAddContestantMutation(_sessionId: string) {
   });
 }
 
-export function useSetContestantVideoMutation(_sessionId: string) {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({
-      contestantId,
-      storageId,
-    }: {
-      contestantId: bigint;
-      storageId: string;
-    }) => {
-      if (!actor) throw new Error("Not authenticated");
-      await actor.setContestantVideo(contestantId, storageId);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["contestants"] });
-    },
-  });
-}
-
-export function useRemoveContestantMutation(_sessionId: string) {
+export function useRemoveContestantMutation() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (contestantId: bigint) => {
-      if (!actor) throw new Error("Not authenticated");
+      if (!actor) throw new Error("Actor not available");
       await actor.removeContestant(contestantId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["contestants"] });
+    },
+  });
+}
+
+export function useAssignAdminRoleMutation() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error("Not authenticated");
+      // Use claimFirstAdminRole — only works when no admin exists yet
+      await actor.claimFirstAdminRole();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["isCallerAdmin"] });
+      queryClient.invalidateQueries({ queryKey: ["callerUserRole"] });
     },
   });
 }

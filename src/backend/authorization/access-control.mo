@@ -41,10 +41,20 @@ module {
     if (caller.isAnonymous()) { return #guest };
     switch (state.userRoles.get(caller)) {
       case (?role) { role };
-      case (null) {
-        Runtime.trap("User is not registered");
-      };
+      case (null) { #guest };
     };
+  };
+
+  // Claim admin role — only works when no admin has been assigned yet.
+  public func claimFirstAdmin(state : AccessControlState, caller : Principal) {
+    if (caller.isAnonymous()) {
+      Runtime.trap("Anonymous callers cannot claim admin");
+    };
+    if (state.adminAssigned) {
+      Runtime.trap("An admin has already been assigned");
+    };
+    state.userRoles.add(caller, #admin);
+    state.adminAssigned := true;
   };
 
   public func assignRole(state : AccessControlState, caller : Principal, user : Principal, role : UserRole) {

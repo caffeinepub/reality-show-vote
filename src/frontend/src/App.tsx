@@ -1,19 +1,21 @@
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, LogIn, LogOut, Menu, Tv2, X } from "lucide-react";
+import { Loader2, LogIn, LogOut, Menu, Shield, Tv2, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import ProfileSetupModal from "./components/ProfileSetupModal";
-import { useAdminSession } from "./hooks/useAdminSession";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import { useCallerUserProfile } from "./hooks/useQueries";
-import AdminLoginPage from "./pages/AdminLoginPage";
+import AdminAccessPage from "./pages/AdminAccessPage";
 import AdminPage from "./pages/AdminPage";
 import ViewerPage from "./pages/ViewerPage";
 
 function getIsAdminRoute() {
-  return window.location.hash === "#/admin";
+  return (
+    window.location.hash === "#/admin" ||
+    window.location.hash.startsWith("#/admin")
+  );
 }
 
 export default function App() {
@@ -25,9 +27,6 @@ export default function App() {
   const queryClient = useQueryClient();
   const isAuthenticated = !!identity;
   const isLoggingIn = loginStatus === "logging-in";
-
-  const { sessionId, setSession, clearSession, isAdminLoggedIn } =
-    useAdminSession();
 
   const {
     data: userProfile,
@@ -41,7 +40,6 @@ export default function App() {
     profileFetched &&
     userProfile === null;
 
-  // Listen for hash changes
   useEffect(() => {
     const handleHashChange = () => {
       setIsAdminRoute(getIsAdminRoute());
@@ -66,20 +64,19 @@ export default function App() {
     }
   };
 
-  const handleAdminLogout = () => {
-    clearSession();
+  const handleGoAdmin = () => {
+    window.location.hash = "#/admin";
   };
 
   const currentYear = new Date().getFullYear();
   const hostname =
     typeof window !== "undefined" ? window.location.hostname : "";
 
-  // Admin route: show login or admin panel (no main nav)
   if (isAdminRoute) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
         <AnimatePresence mode="wait">
-          {isAdminLoggedIn && sessionId ? (
+          {isAuthenticated ? (
             <motion.div
               key="admin-panel"
               initial={{ opacity: 0 }}
@@ -88,7 +85,12 @@ export default function App() {
               transition={{ duration: 0.2 }}
               className="flex-1"
             >
-              <AdminPage sessionId={sessionId} onLogout={handleAdminLogout} />
+              <AdminPage
+                onLogout={() => {
+                  clear();
+                  queryClient.clear();
+                }}
+              />
             </motion.div>
           ) : (
             <motion.div
@@ -99,7 +101,10 @@ export default function App() {
               transition={{ duration: 0.2 }}
               className="flex-1"
             >
-              <AdminLoginPage onLoginSuccess={setSession} />
+              <AdminAccessPage
+                onLogin={login}
+                isLoggingIn={isLoggingIn || isInitializing}
+              />
             </motion.div>
           )}
         </AnimatePresence>
@@ -123,16 +128,13 @@ export default function App() {
     );
   }
 
-  // Viewer / main route
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Header */}
       <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-md">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
-            {/* Logo */}
             <a
-              href="/"
+              href="#/"
               className="flex items-center gap-2.5 font-display font-bold text-xl text-foreground hover:text-primary transition-colors"
               data-ocid="nav.link"
             >
@@ -144,13 +146,23 @@ export default function App() {
               </span>
             </a>
 
-            {/* Desktop Nav */}
             <nav className="hidden md:flex items-center gap-3">
               {isAuthenticated && userProfile && (
                 <span className="text-sm text-muted-foreground font-body">
                   {userProfile.name}
                 </span>
               )}
+
+              <Button
+                onClick={handleGoAdmin}
+                variant="outline"
+                size="sm"
+                className="gap-2 font-body border-primary/30 text-primary hover:bg-primary/10 hover:text-primary"
+                data-ocid="nav.admin_panel_button"
+              >
+                <Shield className="h-4 w-4" />
+                Admin Panel
+              </Button>
 
               <Button
                 onClick={handleAuth}
@@ -179,7 +191,6 @@ export default function App() {
               </Button>
             </nav>
 
-            {/* Mobile Menu Toggle */}
             <button
               type="button"
               className="md:hidden p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground"
@@ -193,7 +204,6 @@ export default function App() {
             </button>
           </div>
 
-          {/* Mobile Nav */}
           <AnimatePresence>
             {mobileMenuOpen && (
               <motion.div
@@ -207,6 +217,19 @@ export default function App() {
                     Signed in as {userProfile.name}
                   </div>
                 )}
+                <Button
+                  onClick={() => {
+                    handleGoAdmin();
+                    setMobileMenuOpen(false);
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start gap-2 font-body border-primary/30 text-primary hover:bg-primary/10 hover:text-primary"
+                  data-ocid="nav.admin_panel_button"
+                >
+                  <Shield className="h-4 w-4" />
+                  Admin Panel
+                </Button>
                 <Button
                   onClick={() => {
                     handleAuth();
@@ -241,12 +264,10 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Content */}
       <div className="flex-1">
         <ViewerPage />
       </div>
 
-      {/* Footer */}
       <footer className="border-t border-border bg-card py-6 mt-auto">
         <div className="container mx-auto px-4 text-center">
           <p className="text-muted-foreground font-body text-sm">
@@ -263,9 +284,7 @@ export default function App() {
         </div>
       </footer>
 
-      {/* Profile Setup Modal */}
       <ProfileSetupModal open={showProfileSetup} />
-
       <Toaster richColors position="top-right" />
     </div>
   );

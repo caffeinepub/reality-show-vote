@@ -7,14 +7,22 @@ export interface None {
     __kind__: "None";
 }
 export type Option<T> = Some<T> | None;
+export class ExternalBlob {
+    getBytes(): Promise<Uint8Array<ArrayBuffer>>;
+    getDirectURL(): string;
+    static fromURL(url: string): ExternalBlob;
+    static fromBytes(blob: Uint8Array<ArrayBuffer>): ExternalBlob;
+    withUploadProgress(onProgress: (percentage: number) => void): ExternalBlob;
+}
+export type Time = bigint;
+export type ContestantId = bigint;
 export interface Contestant {
     id: ContestantId;
     name: string;
-    createdAt: bigint;
-    videoAssetId?: string;
+    createdAt: Time;
     description: string;
+    videoUrl?: ExternalBlob;
 }
-export type ContestantId = bigint;
 export interface UserProfile {
     name: string;
 }
@@ -23,28 +31,20 @@ export enum UserRole {
     user = "user",
     guest = "guest"
 }
-export type AdminLoginResult = { ok: string } | { err: string };
-export type ChangeCredentialsResult = { ok: null } | { err: string };
 export interface backendInterface {
-    // Session-based admin auth
-    initAdminCredentials(username: string, password: string): Promise<boolean>;
-    adminLogin(username: string, password: string): Promise<AdminLoginResult>;
-    adminLogout(sessionId: string): Promise<void>;
-    verifyAdminSession(sessionId: string): Promise<boolean>;
-    changeAdminCredentials(sessionId: string, newUsername: string, newPassword: string): Promise<ChangeCredentialsResult>;
-    // Admin contestant management (session-based)
-    addContestant(sessionId: string, name: string, description: string): Promise<ContestantId>;
-    removeContestant(sessionId: string, contestantId: ContestantId): Promise<void>;
-    setContestantVideo(sessionId: string, contestantId: ContestantId, storageId: string): Promise<void>;
-    // User (II-based)
+    addContestant(name: string, description: string, externalBlob: ExternalBlob | null): Promise<ContestantId>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
+    claimFirstAdminRole(): Promise<void>;
     checkVote(): Promise<ContestantId | null>;
+    getAllContestants(): Promise<Array<Contestant>>;
     getAllContestantsWithVotes(): Promise<Array<[Contestant, bigint]>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getContestant(contestantId: ContestantId): Promise<Contestant | null>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     isCallerAdmin(): Promise<boolean>;
+    removeContestant(contestantId: ContestantId): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
+    updateContestant(contestantId: ContestantId, name: string, description: string, externalBlob: ExternalBlob | null): Promise<void>;
     vote(contestantId: ContestantId): Promise<void>;
 }

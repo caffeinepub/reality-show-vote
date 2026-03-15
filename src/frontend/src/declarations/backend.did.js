@@ -19,18 +19,20 @@ export const _CaffeineStorageRefillResult = IDL.Record({
   'success' : IDL.Opt(IDL.Bool),
   'topped_up_amount' : IDL.Opt(IDL.Nat),
 });
+export const ExternalBlob = IDL.Vec(IDL.Nat8);
 export const ContestantId = IDL.Nat;
 export const UserRole = IDL.Variant({
   'admin' : IDL.Null,
   'user' : IDL.Null,
   'guest' : IDL.Null,
 });
+export const Time = IDL.Int;
 export const Contestant = IDL.Record({
   'id' : ContestantId,
   'name' : IDL.Text,
-  'createdAt' : IDL.Int,
-  'videoAssetId' : IDL.Opt(IDL.Text),
+  'createdAt' : Time,
   'description' : IDL.Text,
+  'videoUrl' : IDL.Opt(ExternalBlob),
 });
 export const UserProfile = IDL.Record({ 'name' : IDL.Text });
 
@@ -62,9 +64,15 @@ export const idlService = IDL.Service({
     ),
   '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
-  'addContestant' : IDL.Func([IDL.Text, IDL.Text], [ContestantId], []),
+  'addContestant' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Opt(ExternalBlob)],
+      [ContestantId],
+      [],
+    ),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'claimFirstAdminRole' : IDL.Func([], [], []),
   'checkVote' : IDL.Func([], [IDL.Opt(ContestantId)], ['query']),
+  'getAllContestants' : IDL.Func([], [IDL.Vec(Contestant)], ['query']),
   'getAllContestantsWithVotes' : IDL.Func(
       [],
       [IDL.Vec(IDL.Tuple(Contestant, IDL.Nat))],
@@ -81,7 +89,11 @@ export const idlService = IDL.Service({
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'removeContestant' : IDL.Func([ContestantId], [], []),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
-  'setContestantVideo' : IDL.Func([ContestantId, IDL.Text], [], []),
+  'updateContestant' : IDL.Func(
+      [ContestantId, IDL.Text, IDL.Text, IDL.Opt(ExternalBlob)],
+      [],
+      [],
+    ),
   'vote' : IDL.Func([ContestantId], [], []),
 });
 
@@ -99,18 +111,20 @@ export const idlFactory = ({ IDL }) => {
     'success' : IDL.Opt(IDL.Bool),
     'topped_up_amount' : IDL.Opt(IDL.Nat),
   });
+  const ExternalBlob = IDL.Vec(IDL.Nat8);
   const ContestantId = IDL.Nat;
   const UserRole = IDL.Variant({
     'admin' : IDL.Null,
     'user' : IDL.Null,
     'guest' : IDL.Null,
   });
+  const Time = IDL.Int;
   const Contestant = IDL.Record({
     'id' : ContestantId,
     'name' : IDL.Text,
-    'createdAt' : IDL.Int,
-    'videoAssetId' : IDL.Opt(IDL.Text),
+    'createdAt' : Time,
     'description' : IDL.Text,
+    'videoUrl' : IDL.Opt(ExternalBlob),
   });
   const UserProfile = IDL.Record({ 'name' : IDL.Text });
   
@@ -142,9 +156,15 @@ export const idlFactory = ({ IDL }) => {
       ),
     '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
-    'addContestant' : IDL.Func([IDL.Text, IDL.Text], [ContestantId], []),
+    'addContestant' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Opt(ExternalBlob)],
+        [ContestantId],
+        [],
+      ),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'claimFirstAdminRole' : IDL.Func([], [], []),
     'checkVote' : IDL.Func([], [IDL.Opt(ContestantId)], ['query']),
+    'getAllContestants' : IDL.Func([], [IDL.Vec(Contestant)], ['query']),
     'getAllContestantsWithVotes' : IDL.Func(
         [],
         [IDL.Vec(IDL.Tuple(Contestant, IDL.Nat))],
@@ -165,7 +185,11 @@ export const idlFactory = ({ IDL }) => {
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'removeContestant' : IDL.Func([ContestantId], [], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
-    'setContestantVideo' : IDL.Func([ContestantId, IDL.Text], [], []),
+    'updateContestant' : IDL.Func(
+        [ContestantId, IDL.Text, IDL.Text, IDL.Opt(ExternalBlob)],
+        [],
+        [],
+      ),
     'vote' : IDL.Func([ContestantId], [], []),
   });
 };

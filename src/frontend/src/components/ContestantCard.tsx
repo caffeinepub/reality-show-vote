@@ -2,9 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, Play, Trophy, Vote } from "lucide-react";
 import { motion } from "motion/react";
-import { useCallback, useEffect, useState } from "react";
 import type { Contestant } from "../backend";
-import { useStorageClient } from "../hooks/useStorageClient";
 
 interface Props {
   contestant: Contestant;
@@ -29,29 +27,10 @@ export default function ContestantCard({
   isVoting,
   index,
 }: Props) {
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const { getVideoUrl } = useStorageClient();
   const isMyVote = votedContestantId === contestant.id;
   const pct = totalVotes > 0n ? Number((voteCount * 100n) / totalVotes) : 0;
   const ocidIndex = index + 1;
-
-  const resolveVideoUrl = useCallback(
-    async (assetId: string) => {
-      try {
-        const url = await getVideoUrl(assetId);
-        setVideoUrl(url);
-      } catch {
-        setVideoUrl(null);
-      }
-    },
-    [getVideoUrl],
-  );
-
-  useEffect(() => {
-    if (contestant.videoAssetId) {
-      resolveVideoUrl(contestant.videoAssetId);
-    }
-  }, [contestant.videoAssetId, resolveVideoUrl]);
+  const videoSrc = contestant.videoUrl?.getDirectURL() ?? null;
 
   return (
     <motion.div
@@ -66,10 +45,10 @@ export default function ContestantCard({
     >
       {/* Video / Placeholder */}
       <div className="relative aspect-video bg-secondary flex items-center justify-center overflow-hidden">
-        {videoUrl ? (
+        {videoSrc ? (
           // biome-ignore lint/a11y/useMediaCaption: captions not applicable for contestant performance videos
           <video
-            src={videoUrl}
+            src={videoSrc}
             controls
             className="w-full h-full object-cover"
             preload="metadata"

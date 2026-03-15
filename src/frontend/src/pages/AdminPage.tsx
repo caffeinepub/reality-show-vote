@@ -24,32 +24,33 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  AlertTriangle,
   Film,
   Loader2,
   LogOut,
   Plus,
   ShieldCheck,
+  ShieldX,
   Trash2,
   Upload,
+  UserCheck,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   useAddContestantMutation,
-  useAdminLogoutMutation,
+  useAssignAdminRoleMutation,
   useContestants,
+  useIsCallerAdmin,
   useRemoveContestantMutation,
-  useSetContestantVideoMutation,
 } from "../hooks/useQueries";
-import { useStorageClient } from "../hooks/useStorageClient";
 
 interface AdminPageProps {
-  sessionId: string;
   onLogout: () => void;
 }
 
-export default function AdminPage({ sessionId, onLogout }: AdminPageProps) {
+export default function AdminPage({ onLogout }: AdminPageProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -58,17 +59,17 @@ export default function AdminPage({ sessionId, onLogout }: AdminPageProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: contestants, isLoading } = useContestants();
-  const addContestantMutation = useAddContestantMutation(sessionId);
-  const setVideoMutation = useSetContestantVideoMutation(sessionId);
-  const removeContestantMutation = useRemoveContestantMutation(sessionId);
-  const logoutMutation = useAdminLogoutMutation();
-  const { uploadFile } = useStorageClient();
+  const { data: isAdmin, isLoading: adminCheckLoading } = useIsCallerAdmin();
+  const addContestantMutation = useAddContestantMutation();
+  const removeContestantMutation = useRemoveContestantMutation();
+  const assignAdminMutation = useAssignAdminRoleMutation();
 
-  const handleLogout = async () => {
+  const handleClaimAdmin = async () => {
     try {
-      await logoutMutation.mutateAsync(sessionId);
-    } finally {
-      onLogout();
+      await assignAdminMutation.mutateAsync();
+      toast.success("You are now the admin!");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to claim admin role.");
     }
   };
 
@@ -81,18 +82,12 @@ export default function AdminPage({ sessionId, onLogout }: AdminPageProps) {
     setIsSubmitting(true);
     setUploadProgress(0);
     try {
-      const contestantId = await addContestantMutation.mutateAsync({
+      await addContestantMutation.mutateAsync({
         name: name.trim(),
         description: description.trim(),
+        videoFile,
+        onProgress: setUploadProgress,
       });
-
-      if (videoFile) {
-        toast.info("Uploading video...");
-        const storageId = await uploadFile(videoFile, (pct) => {
-          setUploadProgress(pct);
-        });
-        await setVideoMutation.mutateAsync({ contestantId, storageId });
-      }
 
       toast.success(`Contestant "${name.trim()}" added successfully!`);
       setName("");
@@ -115,6 +110,71 @@ export default function AdminPage({ sessionId, onLogout }: AdminPageProps) {
       toast.error("Failed to remove contestant.");
     }
   };
+
+  if (adminCheckLoading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center">
+        <div className="text-center" data-ocid="admin.loading_state">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-3" />
+          <p className="text-muted-foreground font-body">
+            Verifying admin access...
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  // No admin exists yet — offer to claim
+  if (isAdmin === false) {
+    return (
+      <main className="min-h-screen flex items-center justify-center px-4">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-md text-center"
+        >
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-accent/10 border border-accent/20 mb-4">
+            <UserCheck className="h-8 w-8 text-accent" />
+          </div>
+          <h2 className="font-display text-2xl font-bold text-foreground mb-2">
+            First-Time Setup
+          </h2>
+          <p className="text-muted-foreground font-body text-sm mb-6">
+            No admin has been configured yet. Claim the admin role to manage
+            this platform.
+          </p>
+          <Button
+            onClick={handleClaimAdmin}
+            disabled={assignAdminMutation.isPending}
+            className="bg-accent text-accent-foreground hover:bg-accent/90 font-display font-semibold"
+            data-ocid="admin.claim_admin_button"
+          >
+            {assignAdminMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Claiming...
+              </>
+            ) : (
+              <>
+                <UserCheck className="h-4 w-4 mr-2" />
+                Claim Admin Role
+              </>
+            )}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-4 gap-2 text-muted-foreground w-full"
+            onClick={onLogout}
+            data-ocid="admin.logout_button"
+          >
+            <LogOut className="h-4 w-4" />
+            Logout
+          </Button>
+        </motion.div>
+      </main>
+    );
+  }
 
   return (
     <main className="container mx-auto px-4 py-10 max-w-5xl">
@@ -142,15 +202,10 @@ export default function AdminPage({ sessionId, onLogout }: AdminPageProps) {
             variant="outline"
             size="sm"
             className="gap-2 font-body text-muted-foreground border-border hover:text-destructive hover:border-destructive/40"
-            onClick={handleLogout}
-            disabled={logoutMutation.isPending}
+            onClick={onLogout}
             data-ocid="admin.logout_button"
           >
-            {logoutMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <LogOut className="h-4 w-4" />
-            )}
+            <LogOut className="h-4 w-4" />
             Logout
           </Button>
         </div>
@@ -240,17 +295,21 @@ export default function AdminPage({ sessionId, onLogout }: AdminPageProps) {
               />
             </div>
 
-            {isSubmitting && uploadProgress > 0 && (
+            {isSubmitting && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm font-body">
                   <span className="text-muted-foreground">
-                    Uploading video...
+                    {videoFile ? "Uploading video..." : "Adding contestant..."}
                   </span>
-                  <span className="text-accent font-semibold">
-                    {uploadProgress}%
-                  </span>
+                  {videoFile && (
+                    <span className="text-accent font-semibold">
+                      {uploadProgress}%
+                    </span>
+                  )}
                 </div>
-                <Progress value={uploadProgress} className="h-2" />
+                {videoFile && (
+                  <Progress value={uploadProgress} className="h-2" />
+                )}
               </div>
             )}
 
@@ -333,7 +392,7 @@ export default function AdminPage({ sessionId, onLogout }: AdminPageProps) {
                         </span>
                       </TableCell>
                       <TableCell>
-                        {contestant.videoAssetId ? (
+                        {contestant.videoUrl ? (
                           <Badge className="bg-accent/10 text-accent border-accent/20 gap-1 font-body">
                             <Film className="h-3 w-3" />
                             Uploaded

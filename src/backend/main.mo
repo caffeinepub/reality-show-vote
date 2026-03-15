@@ -1,43 +1,121 @@
-import Nat "mo:core/Nat";
-import Int "mo:core/Int";
-import Text "mo:core/Text";
-import List "mo:core/List";
-import Time "mo:core/Time";
-import Principal "mo:core/Principal";
-import Iter "mo:core/Iter";
-import Runtime "mo:core/Runtime";
 import Map "mo:core/Map";
+import Nat "mo:core/Nat";
+import List "mo:core/List";
+import Principal "mo:core/Principal";
+import Time "mo:core/Time";
+import Text "mo:core/Text";
+import Runtime "mo:core/Runtime";
 import MixinStorage "blob-storage/Mixin";
+import Storage "blob-storage/Storage";
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
 
+
+
 actor {
+  include MixinStorage();
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
-  include MixinStorage();
 
+  // --- Contestants ---
   type ContestantId = Nat;
 
   type Contestant = {
     id : ContestantId;
     name : Text;
     description : Text;
-    videoAssetId : ?Text;
-    createdAt : Int;
+    videoUrl : ?Storage.ExternalBlob;
+    createdAt : Time.Time;
   };
 
+  var contestantsState = Map.empty<ContestantId, Contestant>();
+  var nextContestantId = 1;
+
+  // --- User profiles (II-based) ---
   public type UserProfile = {
     name : Text;
   };
+  var userProfilesState = Map.empty<Principal, UserProfile>();
 
-  var nextContestantId = 1;
+  // --- Voting (II-based) ---
+  var votesState = Map.empty<Principal, ContestantId>();
 
-  let contestants = Map.empty<ContestantId, Contestant>();
-  let votes = Map.empty<Principal, ContestantId>();
-  let userProfiles = Map.empty<Principal, UserProfile>();
+  // --- User Profile Functions ---
+  public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
+    if (caller.isAnonymous()) {
+      Runtime.trap("Unauthorized: Must be logged in to access profiles");
+    };
+    userProfilesState.get(caller);
+  };
 
-  // Admin-only function: Add Contestant
-  public shared ({ caller }) func addContestant(name : Text, description : Text) : async ContestantId {
+  public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile {
+    if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Can only view your own profile");
+    };
+    userProfilesState.get(user);
+  };
+
+  public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
+    if (caller.isAnonymous()) {
+      Runtime.trap("Unauthorized: Must be logged in to save profiles");
+    };
+    userProfilesState.add(caller, profile);
+  };
+
+  // --- Voting Functions ---
+  public shared ({ caller }) func vote(contestantId : ContestantId) : async () {
+    if (caller.isAnonymous()) {
+      Runtime.trap("Unauthorized: Must be logged in to vote");
+    };
+    if (votesState.containsKey(caller)) {
+      Runtime.trap("User has already voted");
+    };
+    if (not contestantsState.containsKey(contestantId)) {
+      Runtime.trap("Contestant does not exist");
+    };
+    votesState.add(caller, contestantId);
+  };
+
+  public query ({ caller }) func checkVote() : async ?ContestantId {
+    if (caller.isAnonymous()) { return null };
+    votesState.get(caller);
+  };
+
+  // --- Public Query Functions (No auth required) ---
+  public query func getAllContestantsWithVotes() : async [(Contestant, Nat)] {
+    let voteCounts = Map.empty<ContestantId, Nat>();
+    for ((_, contestantId) in votesState.entries()) {
+      let current = switch (voteCounts.get(contestantId)) {
+        case (null) { 0 };
+        case (?count) { count };
+      };
+      voteCounts.add(contestantId, current + 1);
+    };
+    let resultList = List.empty<(Contestant, Nat)>();
+    for ((id, contestant) in contestantsState.entries()) {
+      let count = switch (voteCounts.get(id)) {
+        case (null) { 0 };
+        case (?c) { c };
+      };
+      resultList.add((contestant, count));
+    };
+    resultList.toArray();
+  };
+
+  public query func getAllContestants() : async [Contestant] {
+    contestantsState.toArray().map(func((_, c)) { c });
+  };
+
+  public query func getContestant(contestantId : ContestantId) : async ?Contestant {
+    contestantsState.get(contestantId);
+  };
+
+  // --- Admin Functions ---
+  public shared ({ caller }) func addContestant(
+    name : Text,
+    description : Text,
+    externalBlob : ?Storage.ExternalBlob,
+  ) : async ContestantId {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can add contestants");
     };
@@ -49,123 +127,49 @@ actor {
       id = contestantId;
       name;
       description;
-      videoAssetId = null;
+      videoUrl = externalBlob;
       createdAt = Time.now();
     };
+    contestantsState.add(contestantId, contestant);
 
-    contestants.add(contestantId, contestant);
     contestantId;
   };
 
-  // Admin-only function: Remove Contestant
   public shared ({ caller }) func removeContestant(contestantId : ContestantId) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can remove contestants");
     };
 
-    if (not contestants.containsKey(contestantId)) {
+    if (not contestantsState.containsKey(contestantId)) {
       Runtime.trap("Contestant does not exist");
     };
 
-    contestants.remove(contestantId);
+    contestantsState.remove(contestantId);
   };
 
-  // Admin-only function: Associate video with contestant
-  public shared ({ caller }) func setContestantVideo(contestantId : ContestantId, storageId : Text) : async () {
+  public shared ({ caller }) func updateContestant(
+    contestantId : ContestantId,
+    name : Text,
+    description : Text,
+    externalBlob : ?Storage.ExternalBlob,
+  ) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can set contestant videos");
+      Runtime.trap("Unauthorized: Only admins can update contestants");
     };
 
-    let contestant = switch (contestants.get(contestantId)) {
-      case (null) { Runtime.trap("Contestant not found") };
+    let existingContestant = switch (contestantsState.get(contestantId)) {
+      case (null) { Runtime.trap("Contestant does not exist") };
       case (?c) { c };
     };
 
-    let updatedContestant = {
-      id = contestant.id;
-      name = contestant.name;
-      description = contestant.description;
-      videoAssetId = ?storageId;
-      createdAt = contestant.createdAt;
+    let updatedContestant : Contestant = {
+      id = contestantId;
+      name;
+      description;
+      videoUrl = externalBlob;
+      createdAt = existingContestant.createdAt;
     };
 
-    contestants.add(contestantId, updatedContestant);
-  };
-
-  // User profile management
-  public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access profiles");
-    };
-    userProfiles.get(caller);
-  };
-
-  public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile {
-    if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
-      Runtime.trap("Unauthorized: Can only view your own profile");
-    };
-    userProfiles.get(user);
-  };
-
-  public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can save profiles");
-    };
-    userProfiles.add(caller, profile);
-  };
-
-  // Voting - Users only (Internet Identity authenticated viewers)
-  public shared ({ caller }) func vote(contestantId : ContestantId) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can vote");
-    };
-
-    if (votes.containsKey(caller)) {
-      Runtime.trap("User has already voted");
-    };
-
-    if (not contestants.containsKey(contestantId)) {
-      Runtime.trap("Contestant does not exist");
-    };
-
-    votes.add(caller, contestantId);
-  };
-
-  // Query: Get all contestants with vote counts - Public (no authentication required)
-  public query func getAllContestantsWithVotes() : async [(Contestant, Nat)] {
-    let voteCounts = Map.empty<ContestantId, Nat>();
-
-    for ((_, contestantId) in votes.entries()) {
-      let current = switch (voteCounts.get(contestantId)) {
-        case (null) { 0 };
-        case (?count) { count };
-      };
-      voteCounts.add(contestantId, current + 1);
-    };
-
-    let resultList = List.empty<(Contestant, Nat)>();
-
-    for ((id, contestant) in contestants.entries()) {
-      let count = switch (voteCounts.get(id)) {
-        case (null) { 0 };
-        case (?c) { c };
-      };
-      resultList.add((contestant, count));
-    };
-
-    resultList.toArray();
-  };
-
-  // Query: Get single contestant - Public (no authentication required)
-  public query func getContestant(contestantId : ContestantId) : async ?Contestant {
-    contestants.get(contestantId);
-  };
-
-  // Query: Check if caller has voted and for whom - User only
-  public query ({ caller }) func checkVote() : async ?ContestantId {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can check their vote");
-    };
-    votes.get(caller);
+    contestantsState.add(contestantId, updatedContestant);
   };
 };
