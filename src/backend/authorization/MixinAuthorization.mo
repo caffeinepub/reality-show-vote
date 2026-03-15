@@ -24,11 +24,6 @@ mixin (accessControlState : AccessControl.AccessControlState) {
     AccessControl.assignRole(accessControlState, caller, user, role);
   };
 
-  // Claim admin role — only succeeds if no admin has been assigned yet.
-  public shared ({ caller }) func claimFirstAdminRole() : async () {
-    AccessControl.claimFirstAdmin(accessControlState, caller);
-  };
-
   public query ({ caller }) func isCallerAdmin() : async Bool {
     AccessControl.isAdmin(accessControlState, caller);
   };

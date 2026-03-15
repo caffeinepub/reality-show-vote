@@ -149,8 +149,86 @@
   }
 
   .voted-card {
-    border-color: oklch(var(--primary) / 0.8) !important;
-    box-shadow: 0 0 0 1px oklch(var(--primary) / 0.4), 0 0 30px
-      oklch(var(--primary) / 0.15) !important;
+    border: 1px solid oklch(var(--primary) / 0.8);
+    box-shadow: 0 0 0 1px oklch(var(--primary) / 0.4), 0 0 40px
+      oklch(var(--primary) / 0.2);
+  }
+
+  /* Reality show contestant card */
+  .contestant-placeholder {
+    background: linear-gradient(
+      160deg,
+      oklch(0.18 0.04 280) 0%,
+      oklch(0.12 0.02 260) 40%,
+      oklch(0.08 0.015 240) 100%
+    );
+    position: relative;
+  }
+
+  .contestant-placeholder::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      ellipse 80% 60% at 50% 20%,
+      oklch(var(--primary) / 0.12) 0%,
+      transparent 70%
+    );
+  }
+
+  .contestant-initial {
+    font-family: "Bricolage Grotesque", sans-serif;
+    font-size: 5rem;
+    font-weight: 800;
+    color: oklch(var(--primary) / 0.35);
+    letter-spacing: -0.02em;
+    position: relative;
+    z-index: 1;
+    text-shadow: 0 0 80px oklch(var(--primary) / 0.3);
+  }
+
+  .contestant-vignette {
+    background: radial-gradient(
+      ellipse 100% 100% at 50% 50%,
+      transparent 40%,
+      rgba(0, 0, 0, 0.6) 100%
+    );
+  }
+
+  .contestant-gradient {
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      transparent 35%,
+      rgba(0, 0, 0, 0.55) 60%,
+      rgba(0, 0, 0, 0.9) 85%,
+      rgba(0, 0, 0, 0.97) 100%
+    );
+  }
+
+  /* Vote CTA button — bright, attention-grabbing */
+  .vote-cta-button {
+    background: linear-gradient(
+      135deg,
+      oklch(var(--primary)) 0%,
+      oklch(0.52 0.24 18) 100%
+    );
+    color: white;
+    border: 1px solid oklch(var(--primary) / 0.6);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 24px oklch(var(--primary) / 0.5), 0 0 0 1px
+      oklch(var(--primary) / 0.2) inset;
+    transition: all 0.2s ease;
+  }
+
+  .vote-cta-button:hover:not(:disabled) {
+    background: linear-gradient(
+      135deg,
+      oklch(0.64 0.24 25) 0%,
+      oklch(var(--primary)) 100%
+    );
+    box-shadow: 0 6px 32px oklch(var(--primary) / 0.7), 0 0 0 1px
+      oklch(var(--primary) / 0.4) inset;
+    transform: translateY(-1px);
   }
 }

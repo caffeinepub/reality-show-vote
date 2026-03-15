@@ -1,5 +1,6 @@
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tv2, Users } from "lucide-react";
+import { Heart, LogIn, ThumbsUp, Tv2, Users } from "lucide-react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import ContestantCard from "../components/ContestantCard";
@@ -12,7 +13,32 @@ import {
 
 const SKELETON_KEYS = ["s1", "s2", "s3", "s4", "s5", "s6"];
 
-export default function ViewerPage() {
+const HOW_TO_VOTE_STEPS = [
+  {
+    number: "1",
+    icon: LogIn,
+    title: "TAP LOGIN",
+    desc: "Sign in with one tap",
+  },
+  {
+    number: "2",
+    icon: Heart,
+    title: "PICK YOUR FAVOURITE",
+    desc: "Choose who you want to win",
+  },
+  {
+    number: "3",
+    icon: ThumbsUp,
+    title: "TAP VOTE",
+    desc: "Cast your vote — it's done!",
+  },
+];
+
+interface Props {
+  onLogin?: () => void;
+}
+
+export default function ViewerPage({ onLogin }: Props) {
   const { identity } = useInternetIdentity();
   const isAuthenticated = !!identity;
 
@@ -53,13 +79,13 @@ export default function ViewerPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-semibold mb-6">
-              <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 border border-white/30 text-white text-sm font-semibold mb-6">
+              <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
               LIVE VOTING OPEN
             </div>
           </motion.div>
           <motion.h1
-            className="font-display text-5xl md:text-7xl font-bold text-foreground text-glow-primary leading-none mb-4"
+            className="font-display text-5xl md:text-7xl font-bold text-white text-glow-primary leading-none mb-4"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
@@ -68,7 +94,7 @@ export default function ViewerPage() {
             <span className="block text-primary">VOTE</span>
           </motion.h1>
           <motion.p
-            className="text-muted-foreground text-lg md:text-xl max-w-lg mx-auto font-body"
+            className="text-white/75 text-lg md:text-xl max-w-lg mx-auto font-body"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.2 }}
@@ -77,7 +103,7 @@ export default function ViewerPage() {
           </motion.p>
           {contestants && (
             <motion.div
-              className="flex items-center justify-center gap-2 mt-6 text-muted-foreground font-body text-sm"
+              className="flex items-center justify-center gap-2 mt-6 text-white/70 font-body text-sm"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.4 }}
@@ -93,18 +119,81 @@ export default function ViewerPage() {
         </div>
       </section>
 
+      {/* How to Vote Steps */}
+      <section className="container mx-auto px-4 py-8">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="rounded-2xl border border-primary/20 bg-card/60 backdrop-blur-sm px-6 py-6"
+        >
+          <p className="text-center text-white/60 font-body text-xs uppercase tracking-widest mb-6">
+            How to Vote
+          </p>
+          <div className="flex flex-col md:flex-row items-center justify-center gap-6 md:gap-0">
+            {HOW_TO_VOTE_STEPS.map((step, i) => (
+              <div
+                key={step.number}
+                className="flex md:flex-1 items-center gap-0 w-full md:w-auto"
+              >
+                {/* Step block */}
+                <div className="flex flex-col items-center text-center flex-1">
+                  <div className="relative mb-3">
+                    <div className="w-16 h-16 rounded-full bg-primary/25 border-2 border-primary/50 flex items-center justify-center shadow-lg">
+                      <step.icon className="h-7 w-7 text-white" />
+                    </div>
+                    <span className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold font-display flex items-center justify-center shadow">
+                      {step.number}
+                    </span>
+                  </div>
+                  <p className="font-display font-bold text-white text-sm tracking-wider">
+                    {step.title}
+                  </p>
+                  <p className="text-white/65 font-body text-xs mt-0.5">
+                    {step.desc}
+                  </p>
+                </div>
+                {/* Connector arrow — between steps, desktop only */}
+                {i < HOW_TO_VOTE_STEPS.length - 1 && (
+                  <div className="hidden md:flex items-center justify-center text-primary/40 text-2xl font-bold px-2">
+                    →
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      </section>
+
       {/* Contestants Grid */}
-      <section className="container mx-auto px-4 py-12">
+      <section className="container mx-auto px-4 pb-12">
+        {/* Login CTA — shown only to unauthenticated users */}
         {!isAuthenticated && (
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-8 p-4 rounded-lg border border-primary/20 bg-primary/5 text-center"
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="mb-10 rounded-2xl border border-primary/50 bg-black/80 p-8 text-center shadow-xl backdrop-blur-sm"
+            data-ocid="viewer.login_cta.card"
           >
-            <p className="text-foreground font-body">
-              <span className="text-primary font-semibold">Login</span> using
-              the button in the header to cast your vote.
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/15 border-2 border-primary/30 mb-4">
+              <LogIn className="h-6 w-6 text-primary" />
+            </div>
+            <h2 className="font-display font-bold text-2xl md:text-3xl text-white mb-2">
+              Ready to Vote?
+            </h2>
+            <p className="text-white/90 font-body text-base md:text-lg mb-6 max-w-sm mx-auto">
+              Tap the button below to sign in — it only takes a few seconds
             </p>
+            <Button
+              onClick={onLogin}
+              size="lg"
+              className="w-full max-w-sm mx-auto text-lg font-display font-bold tracking-widest uppercase py-5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-2xl gap-3"
+              data-ocid="viewer.login_cta.button"
+            >
+              <LogIn className="h-5 w-5" />
+              LOGIN &amp; VOTE
+            </Button>
           </motion.div>
         )}
 
@@ -157,12 +246,12 @@ export default function ViewerPage() {
             data-ocid="viewer.empty_state"
           >
             <div className="mx-auto w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
-              <Tv2 className="h-8 w-8 text-muted-foreground" />
+              <Tv2 className="h-8 w-8 text-white/70" />
             </div>
-            <h3 className="font-display text-xl font-bold text-foreground mb-2">
+            <h3 className="font-display text-xl font-bold text-white mb-2">
               No Contestants Yet
             </h3>
-            <p className="text-muted-foreground font-body">
+            <p className="text-white/70 font-body">
               Contestants will appear here once they have been added by the
               admin.
             </p>
